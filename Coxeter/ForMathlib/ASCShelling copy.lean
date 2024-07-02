@@ -105,7 +105,31 @@ lemma shelling_iff_shelling' {F : AbstractSimplicialComplex V} {m : ℕ} [NeZero
       apply isPure'_iSup_isPure' fun i ↦ isPure'_closure_singleton (choose_spec (aux i)).2.2
         /- for all i the union members are pure ASCs, so their union is -/
 
+/-- Definition: An abstract simplicial complex `F` is called shellable, if it admits a shelling. -/
+def Shellable (F : AbstractSimplicialComplex F) := ∃ (m : ℕ) (h : NeZero m) (l : Fin m ≃ Facets F), Shelling l
 
+-- lemma cone_Shellabe_iff {F G : AbstractSimplicialComplex V} {r : ℕ} [Pure F] [Pure G] (x : V) (hcone: Cone F G x) :
+--   Shellable F ↔ Shellable G  := by sorry
+
+/-- Definition: An abstract simplicial complex `F` is shellable, if it admits a shelling using the second definition. -/
+def Shellable' (F: AbstractSimplicialComplex F) := ∃ (m : ℕ) (h : NeZero m) (l : Fin m ≃ Facets F), Shelling' l
+
+/-- Lemma: The two definitions of shellability are equivalent. -/
+lemma shellable_iff_shellable' {F : AbstractSimplicialComplex V} :
+  Shellable F ↔ Shellable' F := by
+    constructor
+    · intro h
+      rcases h with ⟨m, nzm, l, sl⟩
+      use m ; use nzm ; use l
+      apply (shelling_iff_shelling' l).mp
+      exact sl
+    · intro h
+      rcases h with ⟨m, nzm, l, sl⟩
+      use m ; use nzm ; use l
+      apply (shelling_iff_shelling' l).mpr
+      exact sl
+
+/-
 /-- Definition: An abstract simplicial complex `F` is called shellable, if it admits a shelling. -/
 def Shellable (F : AbstractSimplicialComplex F) := ∃ (m : ℕ+) (l : Fin m ≃ Facets F), Shelling l
 
@@ -131,5 +155,6 @@ lemma shellable_iff_shellable' {F : AbstractSimplicialComplex V} :
       use l
       apply (shelling_iff_shelling' l).mpr
       exact sl
+-/
 
 end AbstractSimplicialComplex
