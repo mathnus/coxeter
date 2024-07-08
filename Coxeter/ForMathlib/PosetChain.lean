@@ -578,7 +578,7 @@ lemma max_chain_mem_edge {P : Type*} [PartialOrder P] {L: List P} {e: P × P} :
 We define the set of all maximal chains of P.
 -/
 
-instance : Fintype (Set.Elem { L : List P | L.Nodup }) :=
+instance : Fintype (Set.Elem { L : List P | L.Nodup }) := 
   inferInstanceAs (Fintype { L : List P // L.Nodup })
 
 instance : Fintype { L : List P | maximal_chain L } :=

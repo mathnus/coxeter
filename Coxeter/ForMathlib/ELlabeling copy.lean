@@ -8,6 +8,9 @@ variable {A : Type*} [PartialOrder A]
 
 instance {x y : P} : Fintype (Set.Icc x y) := sorry -- temporary
 
+open AbstractSimplicialComplex
+open List Classical
+
 /-
 Definition: Let `P` and `A` be posets. An edge labelling of `P` in `A` is a map from the set of edges of `P` to the poset `A`.
 -/
@@ -135,14 +138,37 @@ lemma exchainge (L : List P) (x : P) (n : Fin L.length) (h : n.1 > 2) (h₀ : ch
   exact this
 -/
 
-lemma chain_head_lt_chain_2nd (L : List P) (x : P) (h : L ≠ []): chain ([x] ++ L) → x < L.head h := by
-  intro hyp
-  let L' := [x] ++ L
-  have l : L = L.head h :: L.tail := by exact (List.head_cons_tail L h).symm
-  have li : L' = x :: L.head h :: L.tail := by exact congrArg (List.cons x) l
-  have c : List.Chain' (· < ·) L' := by exact hyp
-  rw [li] at c
-  exact (List.chain'_cons.mp c).1
+lemma chain_head_lt_chain_2nd (L : List P) (x : P) (h₁ : L ≠ []) (h₂ : chain L) : chain ([x] ++ L) ↔ x < L.head h₁ := by
+  constructor
+  · intro hyp
+    let L' := [x] ++ L
+    have l : L = L.head h₁ :: L.tail := by exact (List.head_cons_tail L h₁).symm
+    have li : L' = x :: L.head h₁ :: L.tail := by exact congrArg (List.cons x) l
+    have c : List.Chain' (· < ·) L' := by exact hyp
+    rw [li] at c
+    exact (List.chain'_cons.mp c).1
+  · intro hyp
+    apply addChain
+    · constructor
+      simp ; exact h₂
+    · have last : [x].getLast (by simp) = x := by simp
+      rw [last] ; exact hyp
+      constructor
+      simp ; exact h₁
+
+lemma addChain_iff_last_lt_head (L L' : List P) (h₀ : chain L ∧ chain L') (h₁ : L ≠ [] ∧ L' ≠ []) : chain (L ++ L') ↔ L.getLast h₁.1 < L'.head h₁.2 := by
+  constructor
+  · intro hyp ; let L0 := L.getLast h₁.1 :: L'.head h₁.2 :: L'.tail
+    have l : L0 = [L.getLast h₁.1] ++ [L'.head h₁.2] ++ L'.tail := by rfl
+    have c' : chain ([L.getLast h₁.1] ++ [L'.head h₁.2] ++ L'.tail) := by sorry
+    have c : List.Chain' (· < ·) L0 := by exact c'
+    exact (List.chain'_cons.mp c).1
+  · intro hyp
+    apply addChain
+    · constructor
+      exact h₀.1 ; exact h₀.2
+    · exact hyp
+    · exact h₁
 
 lemma exchainge (L : List P) (x : P) (n : Fin L.length) (h : chain L) : chain (L.take (n.1-1) ++ [x]) ∧ chain ([x] ++ L.drop n) → chain (replace_nth L x n) := by
   intro hyp
@@ -156,20 +182,18 @@ lemma exchainge (L : List P) (x : P) (n : Fin L.length) (h : chain L) : chain (L
     · simp [c1]
       exact hyp.2
     · by_cases c2: l₂ = []
-      · simp [c2]
-        exact hyp.1
+      · simp [c2] ; exact hyp.1
       · have ch : chain l₂ := by exact List.Chain'.drop h n.1
         apply addChain
         · constructor
-          ·  exact hyp.1
-          · exact ch
+          exact hyp.1 ; exact ch
         · have ne : l₁ ++ [x] ≠ [] := by simp
           have last : (l₁ ++ [x]).getLast ne = x := by simp
           rw [last]
           have : chain ([x] ++ l₂) := by exact hyp.2
-          apply chain_head_lt_chain_2nd
-          exact this
-          simp [c2]
+          apply (chain_head_lt_chain_2nd l₂ x c2 ch).mp this
+          constructor
+          simp ; exact c2
   exact this
 
 /-
@@ -186,6 +210,24 @@ def mapMaxChain_interval (l : edgeLabeling P A) {x y : P} (m : maximalChains <| 
     -- e : edges P
     )) <| edgePairs m
 
+/- instance poset_mapMaxChain : PartialOrder (maxAChains) where
+  le := fun l₁ l₂ => sorry
+  le_refl :=
+  le_trans :=
+  le_antisymm :=
+
+ instance poset_maxchain [Fintype P] (l : edgeLabeling P A) : PartialOrder (maximalChains P) where
+  le := fun L₁ L₂ => mapMaxChain l L₁ ≤ mapMaxChain l L₂
+  le_refl := by
+    intro a ; simp
+    have eq : mapMaxChain l a = mapMaxChain l a := by simp
+    sorry
+  le_trans := by
+    intro a b c aleb blec
+    simp at aleb blec ; simp
+    sorry
+  le_antisymm := fun _ _ h1 h2 => Subtype.ext <| List.Sublist.antisymm h1 h2 -/
+
 /-Defines the set of risingChains in an interval [x,y]-/
 abbrev risingChains (l : edgeLabeling P A) (x y: P) := {m : maximalChains <| Set.Icc x y | List.Chain' (. ≤ .) <| mapMaxChain_interval l m}
 
@@ -199,21 +241,26 @@ class ELLabeling (l : edgeLabeling P A) where
   unique {x y: P} (h : x<y) : Unique (risingChains l x y)
   unique_min {x y: P} (h : x<y): ∀ (m' : maximalChains <| Set.Icc x y), m' ≠ (unique h).default → (mapMaxChain_interval l (unique h).default.val < mapMaxChain_interval l m')
 
-abbrev maxAChains (l : edgeLabeling P A) : Set (List A) := {mapMaxChain l L | L : maximalChains P}
-/- how to define above as a finset? -/
+noncomputable def maxAChains' (l : edgeLabeling P A) : Finset (List A) := Finset.image (mapMaxChain l) (Finset.univ : Finset (maximalChains P))
 
-/- def order_maxAChains (l : edgeLabeling P A) : List (List A) := Finset.sort (maxAChains l) -/
+/-
+instance: The set of all lists in A admits a partial ordering by the lexicographic order.
+-/
+@[simp]
+instance poset_AList {P : Type*} [PartialOrder P] [Fintype P] (l : edgeLabeling P A) : PartialOrder (maxAChains' l) where
+  le := fun L₁ L₂ => L₁.val ≤ L₂.val
+  le_refl := fun _ => Eq.le refl
+  le_trans := by sorry
+  le_antisymm := by sorry
 
-#check Finset.sort
-#check List.Sorted
+instance poset_A {P : Type*} [PartialOrder P] [Fintype P] (l : edgeLabeling P A) : Lex (maxAChains' l) := by sorry
+
+#check Lex (List A)
+/- def maxAChains (l :edgeLabeling P A) : List (List A) := Finset.sort (· ≤ ·) (maxAChains' l) -/
 
 def pew : Finset ℕ := {1, 3, 2, 4}
 def pewz : List ℕ := Finset.sort (· ≤ ·) pew
 #eval pewz
-
-
-open AbstractSimplicialComplex
-open List Classical
 
 def diff_index {α : Type _} [DecidableEq α] (k m : List α) (h₀ : k ≠ m) (h₁ : k.length = m.length) : Fin m.length :=
   match k, m with
@@ -248,16 +295,13 @@ lemma mapMaxChain_length [GradedPoset P] (l : edgeLabeling P A) (k m : maximalCh
 
 /-
 Lemma : Let P be a graded finite poset with an EL-labelling l to a poset A.
-Then for any two maximal chains s.t. k <_L m, there exists a maximal chain c s.t. c <_L m, and k ∩ m ⊆ c ∩ m
+Then for any two maximal chains s.t. k <_L m, there exists a maximal chain c s.t. c <_L m, k ∩ m ⊆ c ∩ m, and |k ∩ m| = |m| - 1
 -/
 lemma min_max_chain [GradedPoset P] (k m : maximalChains P) (l : edgeLabeling P A) (h : ELLabeling l): mapMaxChain l k < mapMaxChain l m →
-∃ c : maximalChains P, mapMaxChain l c < mapMaxChain l m ∧ k.val ∩ m.val ⊆ c.val ∩ m.val := by
+∃ c : maximalChains P, mapMaxChain l c < mapMaxChain l m ∧ k.val ∩ m.val ⊆ c.val ∩ m.val ∧ (k.val ∩ m.val).length = m.val.length - 1 := by
   let lk := mapMaxChain l k ; let lm := mapMaxChain l m
   intro klem
   have knem : lk ≠ lm := by apply neq_list lk lm klem
-  let ind := diff_index (lk) (lm) knem (mapMaxChain_length l k m)
-  let x := lm[ind.1 - 1] ; let y := lm[ind.1 + 1]'sorry
-  rcases h with ⟨uni, umin⟩
   sorry
 /- need to define c using exchainge, then prove it is maximal etc. -/
 
