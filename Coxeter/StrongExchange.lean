@@ -115,7 +115,9 @@ local notation "S'" => CoxeterMatrix.SimpleRefl (toMatrix S)
 def invmap (S:Set G) [CoxeterSystem G S] : G →* CoxeterMatrix.toGroup (toMatrix S) := monoidLift.mapLift (CoxeterMatrix.of_relation (toMatrix S))
 
 lemma invmap.of_eq {S:Set G} [CoxeterSystem G S] {s :S} : invmap S s = s := by
-  sorry
+  simp [CoxeterSystem.Presentation.invmap]
+  unfold CoxeterSystem.toMatrix
+  apply CoxeterSystem.monoidLift.mapLift.of
 
 def invmap_map_eq_id : MonoidHom.comp (invmap S)  (map S) = MonoidHom.id G':= by
   ext x
